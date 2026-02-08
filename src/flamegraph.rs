@@ -110,15 +110,23 @@ pub struct FrameRect {
     pub name: String,
     pub self_value: i64,
     pub total_value: i64,
+    pub palette_index: usize,
 }
 
-pub fn layout_frames(node: &FlameNode, area_width: u16) -> Vec<FrameRect> {
+pub fn thread_rank(root: &FlameNode, thread_name: &str) -> usize {
+    root.children
+        .iter()
+        .position(|c| c.name == thread_name)
+        .unwrap_or(0)
+}
+
+pub fn layout_frames(node: &FlameNode, area_width: u16, forced_palette: Option<usize>) -> Vec<FrameRect> {
     if node.total_value <= 0 {
         return Vec::new();
     }
     let scale = area_width as f64 / node.total_value as f64;
     let mut frames = Vec::new();
-    layout_recursive(node, 0.0, 0, scale, &mut frames);
+    layout_recursive(node, 0.0, 0, scale, forced_palette, &mut frames);
     frames
 }
 
@@ -127,6 +135,7 @@ fn layout_recursive(
     x_float: f64,
     depth: usize,
     scale: f64,
+    palette: Option<usize>,
     frames: &mut Vec<FrameRect>,
 ) {
     let x_end = x_float + node.total_value as f64 * scale;
@@ -137,6 +146,8 @@ fn layout_recursive(
         return;
     }
 
+    let palette_index = palette.unwrap_or(0);
+
     frames.push(FrameRect {
         x,
         width,
@@ -144,11 +155,17 @@ fn layout_recursive(
         name: node.name.clone(),
         self_value: node.self_value,
         total_value: node.total_value,
+        palette_index,
     });
 
     let mut child_x = x_float;
-    for child in &node.children {
-        layout_recursive(child, child_x, depth + 1, scale, frames);
+    for (i, child) in node.children.iter().enumerate() {
+        let child_palette = if depth == 0 && palette.is_none() {
+            Some(i)
+        } else {
+            Some(palette_index)
+        };
+        layout_recursive(child, child_x, depth + 1, scale, child_palette, frames);
         child_x += child.total_value as f64 * scale;
     }
 }
@@ -157,6 +174,7 @@ pub fn cursor_frame_rect(
     zoom_root: &FlameNode,
     cursor_path: &[usize],
     area_width: u16,
+    forced_palette: Option<usize>,
 ) -> Option<FrameRect> {
     if zoom_root.total_value <= 0 {
         return None;
@@ -164,12 +182,16 @@ pub fn cursor_frame_rect(
     let scale = area_width as f64 / zoom_root.total_value as f64;
     let mut node = zoom_root;
     let mut x_acc = 0.0;
+    let mut palette_index = forced_palette.unwrap_or(0);
 
-    for &idx in cursor_path {
+    for (step, &idx) in cursor_path.iter().enumerate() {
         for i in 0..idx.min(node.children.len()) {
             x_acc += node.children[i].total_value as f64 * scale;
         }
         if idx < node.children.len() {
+            if step == 0 && forced_palette.is_none() {
+                palette_index = idx;
+            }
             node = &node.children[idx];
         } else {
             return None;
@@ -186,5 +208,6 @@ pub fn cursor_frame_rect(
         name: node.name.clone(),
         self_value: node.self_value,
         total_value: node.total_value,
+        palette_index,
     })
 }

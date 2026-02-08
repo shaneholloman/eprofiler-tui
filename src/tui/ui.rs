@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::flamegraph::{cursor_frame_rect, get_zoom_node, layout_frames};
+use crate::flamegraph::{cursor_frame_rect, get_zoom_node, layout_frames, thread_rank};
 use super::state::State;
 
 const BG: Color = Color::Rgb(16, 16, 22);
@@ -262,7 +262,12 @@ fn render_flamegraph(state: &mut State, frame: &mut Frame, area: Rect) {
         return;
     }
 
-    let frames = layout_frames(zoom_root, area.width);
+    let forced_palette = state
+        .zoom_path
+        .first()
+        .map(|thread_name| thread_rank(&state.flamegraph.root, thread_name));
+
+    let frames = layout_frames(zoom_root, area.width, forced_palette);
     let max_depth = frames.iter().map(|f| f.depth).max().unwrap_or(0);
     let viewport_height = area.height as usize;
     let root_total = zoom_root.total_value;
@@ -281,7 +286,7 @@ fn render_flamegraph(state: &mut State, frame: &mut Frame, area: Rect) {
         state.scroll_y = max_scroll;
     }
 
-    let cursor_rect = cursor_frame_rect(zoom_root, &state.cursor_path, area.width);
+    let cursor_rect = cursor_frame_rect(zoom_root, &state.cursor_path, area.width, forced_palette);
 
     if let Some(ref cr) = cursor_rect {
         state.selected_name = cr.name.clone();
@@ -320,9 +325,9 @@ fn render_flamegraph(state: &mut State, frame: &mut Frame, area: Rect) {
         };
 
         let bg = if is_cursor {
-            lighten(flame_color(&fr.name, heat), 45)
+            lighten(flame_color(&fr.name, heat, fr.palette_index), 45)
         } else {
-            flame_color(&fr.name, heat)
+            flame_color(&fr.name, heat, fr.palette_index)
         };
         let fg = contrast_fg(bg);
 
@@ -635,24 +640,82 @@ fn render_search_overlay(state: &State, frame: &mut Frame, area: Rect) {
     }
 }
 
-fn flame_color(name: &str, heat: f64) -> Color {
+const PALETTES: &[&[(f64, (u8, u8, u8))]] = &[
+    &[
+        (0.00, (253, 224, 71)),
+        (0.25, (251, 191, 36)),
+        (0.45, (249, 115, 22)),
+        (0.65, (234, 88, 12)),
+        (0.80, (220, 38, 38)),
+        (1.00, (185, 28, 28)),
+    ],
+    &[
+        (0.00, (252, 211, 77)),
+        (0.25, (245, 158, 11)),
+        (0.45, (217, 119, 6)),
+        (0.65, (180, 83, 9)),
+        (0.80, (146, 64, 14)),
+        (1.00, (120, 53, 15)),
+    ],
+    &[
+        (0.00, (253, 164, 175)),
+        (0.25, (251, 113, 133)),
+        (0.45, (244, 63, 94)),
+        (0.65, (225, 29, 72)),
+        (0.80, (190, 18, 60)),
+        (1.00, (136, 19, 55)),
+    ],
+    &[
+        (0.00, (190, 242, 100)),
+        (0.25, (163, 230, 53)),
+        (0.45, (132, 204, 22)),
+        (0.65, (101, 163, 13)),
+        (0.80, (77, 124, 15)),
+        (1.00, (54, 83, 20)),
+    ],
+    &[
+        (0.00, (153, 246, 228)),
+        (0.25, (94, 234, 212)),
+        (0.45, (20, 184, 166)),
+        (0.65, (13, 148, 136)),
+        (0.80, (15, 118, 110)),
+        (1.00, (19, 78, 74)),
+    ],
+    &[
+        (0.00, (147, 197, 253)),
+        (0.25, (96, 165, 250)),
+        (0.45, (59, 130, 246)),
+        (0.65, (37, 99, 235)),
+        (0.80, (29, 78, 216)),
+        (1.00, (30, 58, 138)),
+    ],
+    &[
+        (0.00, (165, 180, 252)),
+        (0.25, (129, 140, 248)),
+        (0.45, (99, 102, 241)),
+        (0.65, (79, 70, 229)),
+        (0.80, (67, 56, 202)),
+        (1.00, (55, 48, 163)),
+    ],
+    &[
+        (0.00, (216, 180, 254)),
+        (0.25, (192, 132, 252)),
+        (0.45, (168, 85, 247)),
+        (0.65, (147, 51, 234)),
+        (0.80, (126, 34, 206)),
+        (1.00, (88, 28, 135)),
+    ],
+];
+
+fn flame_color(name: &str, heat: f64, palette_index: usize) -> Color {
     let hash = name
         .bytes()
         .fold(0u64, |h, b| h.wrapping_mul(2654435761).wrapping_add(b as u64));
 
     let h = heat.clamp(0.0, 1.0);
 
-    let (r, g, b) = gradient(
-        h,
-        &[
-            (0.00, (253, 224, 71)),
-            (0.25, (251, 191, 36)),
-            (0.45, (249, 115, 22)),
-            (0.65, (234, 88, 12)),
-            (0.80, (220, 38, 38)),
-            (1.00, (185, 28, 28)),
-        ],
-    );
+    let stops = PALETTES[palette_index % PALETTES.len()];
+    let (r, g, b) = gradient(h, stops);
 
     let rv = ((hash % 18) as i16 - 9).clamp(-12, 12);
     let gv = (((hash >> 5) % 14) as i16 - 7).clamp(-10, 10);
