@@ -5,6 +5,7 @@ use crate::flamegraph::{FlameGraph, FlameNode, get_node, get_zoom_node};
 pub struct State {
     pub running: bool,
     pub listen_addr: String,
+    pub frozen: bool,
     pub flamegraph: FlameGraph,
     pub profiles_received: u64,
     pub samples_received: u64,
@@ -27,6 +28,7 @@ impl State {
         Self {
             running: true,
             listen_addr,
+            frozen: false,
             flamegraph: FlameGraph::new(),
             profiles_received: 0,
             samples_received: 0,
@@ -46,6 +48,9 @@ impl State {
     }
 
     pub fn merge_flamegraph(&mut self, new_fg: FlameGraph, samples: u64) {
+        if self.frozen {
+            return;
+        }
         self.flamegraph.root.merge(&new_fg.root);
         self.flamegraph.root.sort_recursive();
         self.profiles_received += 1;
@@ -60,14 +65,14 @@ impl State {
 
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('Q') => self.running = false,
+            KeyCode::Char('f') | KeyCode::Char(' ') => self.frozen = !self.frozen,
             KeyCode::Down | KeyCode::Char('j') => self.move_down_depth(),
             KeyCode::Up | KeyCode::Char('k') => self.move_up_depth(),
             KeyCode::Left | KeyCode::Char('h') => self.move_left(),
             KeyCode::Right | KeyCode::Char('l') => self.move_right(),
             KeyCode::Enter => self.zoom_in(),
             KeyCode::Esc | KeyCode::Backspace => self.zoom_out(),
-            KeyCode::Char('r') => self.reset_view(),
-            KeyCode::Char('c') => self.clear(),
+            KeyCode::Char('r') => self.reset(),
             KeyCode::Char('/') => self.open_search(),
             _ => {}
         }
@@ -200,17 +205,13 @@ impl State {
         }
     }
 
-    fn reset_view(&mut self) {
-        self.zoom_path.clear();
-        self.cursor_path.clear();
-        self.scroll_y = 0;
-    }
-
-    fn clear(&mut self) {
+    fn reset(&mut self) {
         self.flamegraph = FlameGraph::new();
         self.profiles_received = 0;
         self.samples_received = 0;
-        self.reset_view();
+        self.zoom_path.clear();
+        self.cursor_path.clear();
+        self.scroll_y = 0;
     }
 }
 

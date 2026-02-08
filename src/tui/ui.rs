@@ -27,7 +27,7 @@ pub fn render(state: &mut State, frame: &mut Frame) {
     let chunks = Layout::new(
         Direction::Vertical,
         [
-            Constraint::Length(2),
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Min(0),
             Constraint::Length(1),
@@ -152,12 +152,6 @@ fn center_str(buf: &mut Buffer, area: Rect, y: u16, text: &str, style: Style) {
 }
 
 fn render_header(state: &State, frame: &mut Frame, area: Rect) {
-    let rows = Layout::new(
-        Direction::Vertical,
-        [Constraint::Length(1), Constraint::Length(1)],
-    )
-    .split(area);
-
     let sep = " │ ".fg(Color::Rgb(55, 55, 65));
 
     let left_spans: Vec<Span> = vec![
@@ -175,76 +169,85 @@ fn render_header(state: &State, frame: &mut Frame, area: Rect) {
         sep,
         format!("{} samples", format_count(state.samples_received)).fg(Color::Rgb(110, 110, 130)),
     ];
-    frame.render_widget(Paragraph::new(Line::from(left_spans)), rows[0]);
+    frame.render_widget(Paragraph::new(Line::from(left_spans)), area);
 
     let buf = frame.buffer_mut();
-    for x in area.x..area.x + area.width {
-        if let Some(c) = buf.cell_mut((x, rows[1].y)) {
-            c.set_char('─');
-            c.set_style(Style::default().fg(SEP_COLOR));
-        }
-    }
-
-    if !state.zoom_path.is_empty() {
-        let zoom_label = format!(
-            " zoomed: {} ",
-            state.zoom_path.last().unwrap_or(&String::new())
-        );
-        buf.set_string(
-            area.x + 2,
-            rows[1].y,
-            &zoom_label,
-            Style::default()
-                .fg(ACCENT)
-                .add_modifier(Modifier::BOLD),
-        );
-    }
+    let (icon, label, color) = if state.frozen {
+        ("⏸ ", "FROZEN", Color::Rgb(234, 179, 8))
+    } else {
+        ("▶ ", "LIVE", Color::Rgb(34, 197, 94))
+    };
+    let indicator = format!(" {icon}{label} ");
+    let ix = area.x + area.width.saturating_sub(indicator.len() as u16);
+    buf.set_string(
+        ix,
+        area.y,
+        &indicator,
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    );
 }
 
 fn render_detail_bar(state: &State, frame: &mut Frame, area: Rect) {
-    if state.selected_name.is_empty() {
+    if state.selected_name.is_empty() && state.zoom_path.is_empty() {
         return;
     }
+
     let sep = " │ ".fg(Color::Rgb(55, 55, 65));
     let root_total = {
         let zr = get_zoom_node(&state.flamegraph.root, &state.zoom_path);
         zr.total_value
     };
 
-    let self_pct = if root_total > 0 {
-        state.selected_self as f64 / root_total as f64 * 100.0
-    } else {
-        0.0
-    };
-    let total_pct = if root_total > 0 {
-        state.selected_total as f64 / root_total as f64 * 100.0
-    } else {
-        0.0
-    };
+    let mut spans: Vec<Span> = Vec::new();
 
-    let spans: Vec<Span> = vec![
-        " ▸ ".fg(ACCENT).bold(),
-        Span::styled(
+    if !state.zoom_path.is_empty() {
+        spans.push(
+            format!(" zoomed: {} ", state.zoom_path.last().unwrap_or(&String::new()))
+                .fg(ACCENT)
+                .bold(),
+        );
+        if !state.selected_name.is_empty() {
+            spans.push(sep.clone());
+        }
+    }
+
+    if !state.selected_name.is_empty() {
+        let self_pct = if root_total > 0 {
+            state.selected_self as f64 / root_total as f64 * 100.0
+        } else {
+            0.0
+        };
+        let total_pct = if root_total > 0 {
+            state.selected_total as f64 / root_total as f64 * 100.0
+        } else {
+            0.0
+        };
+
+        spans.push(" ▸ ".fg(ACCENT).bold());
+        spans.push(Span::styled(
             truncate(&state.selected_name, 40),
             Style::default().fg(BRIGHT).add_modifier(Modifier::BOLD),
-        ),
-        sep.clone(),
-        "self: ".fg(DIM),
-        format!("{} ({:.1}%)", format_count(state.selected_self as u64), self_pct)
-            .fg(Color::Rgb(249, 115, 22)),
-        sep.clone(),
-        "total: ".fg(DIM),
-        format!(
-            "{} ({:.1}%)",
-            format_count(state.selected_total as u64),
-            total_pct
-        )
-        .fg(Color::Rgb(234, 179, 8)),
-        sep,
-        "depth: ".fg(DIM),
-        state.selected_depth.to_string().fg(Color::Rgb(130, 130, 150)),
-        " ".into(),
-    ];
+        ));
+        spans.push(sep.clone());
+        spans.push("self: ".fg(DIM));
+        spans.push(
+            format!("{} ({:.1}%)", format_count(state.selected_self as u64), self_pct)
+                .fg(Color::Rgb(249, 115, 22)),
+        );
+        spans.push(sep.clone());
+        spans.push("total: ".fg(DIM));
+        spans.push(
+            format!(
+                "{} ({:.1}%)",
+                format_count(state.selected_total as u64),
+                total_pct
+            )
+            .fg(Color::Rgb(234, 179, 8)),
+        );
+        spans.push(sep);
+        spans.push("depth: ".fg(DIM));
+        spans.push(state.selected_depth.to_string().fg(Color::Rgb(130, 130, 150)));
+    }
 
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
@@ -443,6 +446,8 @@ fn render_footer(state: &State, frame: &mut Frame, area: Rect) {
         let spans: Vec<Span> = vec![
             " [q]".fg(key),
             " quit ".fg(desc),
+            "[f/Space]".fg(key),
+            " freeze ".fg(desc),
             "[j/↓ k/↑]".fg(key),
             " depth ".fg(desc),
             "[h/← l/→]".fg(key),
@@ -455,8 +460,6 @@ fn render_footer(state: &State, frame: &mut Frame, area: Rect) {
             " search ".fg(desc),
             "[r]".fg(key),
             " reset ".fg(desc),
-            "[c]".fg(key),
-            " clear ".fg(desc),
         ];
         frame.render_widget(
             Paragraph::new(Line::from(spans)).alignment(Alignment::Left),

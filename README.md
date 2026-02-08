@@ -8,6 +8,7 @@ A terminal-based flamegraph viewer that receives profiling data via an OTLP gRPC
 
 - OTLP gRPC profiles receiver (default `0.0.0.0:4317`, configurable via `--port`)
 - Live icicle-style flamegraph with hot/warm color scheme
+- Freeze/live toggle to pause updates for smooth navigation
 - Frame type annotations (`[Native]`, `[Kernel]`, `[JVM]`, etc.)
 - Thread/process grouping via `thread.name` sample attribute
 - Keyboard-driven navigation and zoom
@@ -45,6 +46,7 @@ cargo run --release -- --port 4318
 
 | Key | Action |
 |-----|--------|
+| `f` / `Space` | Toggle freeze/live mode |
 | `j` / `↓` | Move deeper into the stack |
 | `k` / `↑` | Move shallower |
 | `h` / `←` | Previous sibling frame |
@@ -52,6 +54,5 @@ cargo run --release -- --port 4318
 | `Enter` | Zoom into selected frame |
 | `Esc` | Zoom out one level |
 | `/` | Search/filter by thread name |
-| `r` | Reset view |
-| `c` | Clear all data |
+| `r` | Reset (clear all data) |
 | `q` | Quit |

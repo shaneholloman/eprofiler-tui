@@ -14,7 +14,7 @@ use tui::state::State;
 use tui::Tui;
 
 #[derive(Parser)]
-#[command(about = "Terminal-based OTLP flamegraph viewer")]
+#[command(name = "eprofiler-tui", about = "Terminal-based OTLP flamegraph viewer")]
 struct Cli {
     #[arg(short, long, default_value_t = 4317)]
     port: u16,
