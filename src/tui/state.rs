@@ -1,4 +1,4 @@
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::flamegraph::{FlameGraph, FlameNode, get_node, get_zoom_node};
 
@@ -58,6 +58,11 @@ impl State {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.running = false;
+            return;
+        }
+
         if self.search_active {
             self.handle_search_key(key);
             return;

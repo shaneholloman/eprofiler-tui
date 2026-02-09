@@ -2,6 +2,13 @@
 name = "eprofiler-tui"
 version = "0.1.0"
 edition = "2024"
+license = "Apache-2.0"
+description = "Terminal-based flamegraph viewer that receives profiling data via OTLP gRPC and renders live, interactive flamegraphs"
+homepage = "https://github.com/rogercoll/eprofiler-tui"
+repository = "https://github.com/rogercoll/eprofiler-tui"
+readme = "README.md"
+keywords = ["opentelemetry", "profiling", "flamegraph", "tui", "otlp"]
+categories = ["command-line-utilities", "visualization", "development-tools::profiling"]
 
 [dependencies]
 better-panic = "0.3"
