@@ -255,3 +255,140 @@ pub async fn start_server(
         .serve(addr)
         .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    use collector::profiles_service_client::ProfilesServiceClient;
+    use collector::ExportProfilesServiceRequest;
+    use common::any_value;
+    use common::AnyValue;
+    use profiles::{
+        Function, KeyValueAndUnit, Line, Location, Profile, ProfilesDictionary, ResourceProfiles,
+        Sample, ScopeProfiles, Stack,
+    };
+
+    #[tokio::test]
+    async fn test_export_profile() {
+        let (tx, rx) = mpsc::channel();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        tokio::spawn(async move {
+            let server = ProfilesServer::new(tx);
+            tonic::transport::Server::builder()
+                .add_service(
+                    collector::profiles_service_server::ProfilesServiceServer::new(server),
+                )
+                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut client = ProfilesServiceClient::connect(format!("http://127.0.0.1:{port}"))
+            .await
+            .unwrap();
+
+        client.export(build_request()).await.unwrap();
+
+        let event = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        match event {
+            Event::ProfileUpdate { flamegraph, samples } => {
+                assert_eq!(samples, 1);
+                assert_eq!(flamegraph.root.children.len(), 1);
+
+                let thread = &flamegraph.root.children[0];
+                assert_eq!(thread.name, "worker-1");
+                assert_eq!(thread.total_value, 10);
+
+                let child = &thread.children[0];
+                assert_eq!(child.name, "main");
+                assert_eq!(child.children[0].name, "do_work");
+            }
+            _ => panic!("expected ProfileUpdate event"),
+        }
+    }
+
+    fn build_request() -> ExportProfilesServiceRequest {
+        let dictionary = ProfilesDictionary {
+            string_table: vec![
+                "".into(),
+                "thread.name".into(),
+                "worker-1".into(),
+                "do_work".into(),
+                "main".into(),
+            ],
+            attribute_table: vec![
+                KeyValueAndUnit::default(),
+                KeyValueAndUnit {
+                    key_strindex: 1,
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::StringValue("worker-1".into())),
+                    }),
+                    unit_strindex: 0,
+                },
+            ],
+            function_table: vec![
+                Function::default(),
+                Function {
+                    name_strindex: 3,
+                    ..Default::default()
+                },
+                Function {
+                    name_strindex: 4,
+                    ..Default::default()
+                },
+            ],
+            location_table: vec![
+                Location::default(),
+                Location {
+                    lines: vec![Line {
+                        function_index: 1,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                Location {
+                    lines: vec![Line {
+                        function_index: 2,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+            ],
+            stack_table: vec![
+                Stack::default(),
+                Stack {
+                    location_indices: vec![1, 2],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let sample = Sample {
+            stack_index: 1,
+            values: vec![10],
+            attribute_indices: vec![1],
+            ..Default::default()
+        };
+
+        ExportProfilesServiceRequest {
+            dictionary: Some(dictionary),
+            resource_profiles: vec![ResourceProfiles {
+                scope_profiles: vec![ScopeProfiles {
+                    profiles: vec![Profile {
+                        samples: vec![sample],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        }
+    }
+}

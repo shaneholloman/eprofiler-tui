@@ -2,7 +2,7 @@
 name = "eprofiler-tui"
 version = "0.1.0"
 edition = "2024"
-license = "Apache-2.0"
+license = "MIT"
 description = "Terminal-based flamegraph viewer that receives profiling data via OTLP gRPC and renders live, interactive flamegraphs"
 homepage = "https://github.com/rogercoll/eprofiler-tui"
 repository = "https://github.com/rogercoll/eprofiler-tui"
@@ -21,3 +21,6 @@ tonic = { version = "0.12", features = ["gzip"] }
 
 [build-dependencies]
 tonic-build = "0.12"
+
+[dev-dependencies]
+tokio-stream = { version = "0.1.18", features = ["net"] }
