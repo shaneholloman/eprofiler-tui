@@ -2,9 +2,9 @@ use std::sync::mpsc;
 use tonic::{Request, Response, Status};
 
 use crate::flamegraph::FlameGraph;
-use crate::proto::opentelemetry::proto::collector::profiles::v1development as collector;
-use crate::proto::opentelemetry::proto::common::v1 as common;
-use crate::proto::opentelemetry::proto::profiles::v1development as profiles;
+use eprofiler_proto::opentelemetry::proto::collector::profiles::v1development as collector;
+use eprofiler_proto::opentelemetry::proto::common::v1 as common;
+use eprofiler_proto::opentelemetry::proto::profiles::v1development as profiles;
 use crate::tui::event::Event;
 
 pub struct ProfilesServer {

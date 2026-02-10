@@ -5,7 +5,6 @@ use ratatui::Terminal;
 mod error;
 mod flamegraph;
 mod grpc;
-mod proto;
 mod tui;
 
 use error::Result;
