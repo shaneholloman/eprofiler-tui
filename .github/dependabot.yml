@@ -1,6 +1,13 @@
 version: 2
 updates:
-  - package-ecosystem: "rust-toolchain"
-    directory: "/" # Location of package manifests
+  # Update Rust crate dependencies in the root crate
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Update Rust crate dependencies in the proto crate
+  - package-ecosystem: "cargo"
+    directory: "/proto"
     schedule:
       interval: "weekly"
