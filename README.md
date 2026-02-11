@@ -33,6 +33,18 @@ To use a different port:
 $ eprofiler-tui --port 4318
 ```
 
+### Docker
+
+```
+docker run -it -p 4317:4317 ghcr.io/rogercoll/eprofiler-tui:latest
+```
+
+To use a different port:
+
+```
+docker run -it -p 4318:4318 ghcr.io/rogercoll/eprofiler-tui:latest --port 4318
+```
+
 | Option | Description |
 |--------|-------------|
 | `-p`, `--port <PORT>` | OTLP gRPC listen port (default: `4317`) |
