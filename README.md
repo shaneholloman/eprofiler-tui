@@ -19,6 +19,16 @@ A terminal-based flamegraph viewer that receives profiling data via an OTLP gRPC
 
 ## Installation
 
+No Rust toolchain required — you can run `eprofiler-tui` directly with Docker or Podman:
+
+```
+podman run -it -p 4317:4317 ghcr.io/rogercoll/eprofiler-tui:latest
+```
+
+> Replace `podman` with `docker` if preferred.
+
+Alternatively, install from source with Cargo:
+
 ```
 cargo install --git https://github.com/rogercoll/eprofiler-tui
 ```
@@ -30,19 +40,8 @@ The TUI will start and listen for OTLP profile data on port 4317. Point your Ope
 To use a different port:
 
 ```
-$ eprofiler-tui --port 4318
-```
-
-### Docker
-
-```
-docker run -it -p 4317:4317 ghcr.io/rogercoll/eprofiler-tui:latest
-```
-
-To use a different port:
-
-```
-docker run -it -p 4318:4318 ghcr.io/rogercoll/eprofiler-tui:latest --port 4318
+# With Cargo install:
+eprofiler-tui --port 4318
 ```
 
 | Option | Description |
